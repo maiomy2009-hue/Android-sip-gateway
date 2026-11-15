@@ -1,0 +1,50 @@
+name: Build SMS Relay APK (clean)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ sms-forwarder-clean ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+
+      - name: Install Android SDK
+        run: sdkmanager "platforms;android-36" "build-tools;36.1.0"
+
+      - name: Reassemble and verify source archive
+        shell: bash
+        run: |
+          cat sms-forwarder-payload.00 sms-forwarder-payload.01 sms-forwarder-payload.02 sms-forwarder-payload.03 sms-forwarder-payload.04 sms-forwarder-payload.05 sms-forwarder-payload.06 sms-forwarder-tail.0 sms-forwarder-tail.1 sms-forwarder-tail.2 sms-forwarder-tail.3 > /tmp/sms-forwarder-build.zip.b64
+          test "$(wc -c < /tmp/sms-forwarder-build.zip.b64)" -eq 37068
+          base64 --decode /tmp/sms-forwarder-build.zip.b64 > /tmp/sms-forwarder-build.zip
+          test "$(wc -c < /tmp/sms-forwarder-build.zip)" -eq 27801
+          unzip -t /tmp/sms-forwarder-build.zip
+          unzip -oq /tmp/sms-forwarder-build.zip -d .
+
+      - name: Build debug APK
+        run: |
+          chmod +x ./gradlew
+          ./gradlew -p sms-forwarder --no-daemon assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: SMS-Relay-debug-apk
+          path: sms-forwarder/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14
